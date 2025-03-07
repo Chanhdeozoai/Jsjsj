@@ -1,0 +1,261 @@
+-- Blox Fruits Farm Script (Teleport, Auto-Quest, Aerial Attack, Basic UI)
+
+--// --- Services ---
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+--// --- UI (Fluent) ---
+local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+local Window = Fluent:CreateWindow({
+    Title = "HaZi Hub",  -- Change as you like
+    SubTitle = "Farm Script", -- Change as you like
+    TabWidth = 160,
+    Size = UDim2.fromOffset(530, 350), -- Adjust size if needed
+    Acrylic = true,
+    Theme = "Darker",
+    MinimizeKey = Enum.KeyCode.End
+})
+
+local Tabs = {
+    Main = Window:AddTab({ Title = "Main", Icon = "home" }),
+    Setting = Window:AddTab({ Title = "Settings", Icon = "settings" }),
+}
+
+--// --- Global Variables ---
+local AutoFarm = false
+local AutoAcceptQuest = true
+local AttackDistance = 12
+local TargetLevel = 1  -- Start farming at level 1 (Bandits).  Change this.
+
+--// --- Farming Data (EXTEND THIS FOR MORE LEVELS/MOBS) ---
+local FarmData = {
+    [1] = {  -- Level 1-9 (Bandits)
+        NPC_CFrame = CFrame.new(1060.9383544922, 16.455066680908, 1547.7841796875),
+        MobFolder = "Bandits",
+        MobLocation = CFrame.new(1038.5533447266, 41.296249389648, 1576.5098876953),
+    },
+     [10] = { -- Level 10 - 14
+        NPC_CFrame = CFrame.new(-1601.6553955078, 36.85213470459, 153.38809204102),
+        MobFolder = "Monkeys",
+		MobLocation = CFrame.new(-1448.1446533203, 50.851993560791, 63.60718536377),
+    },
+    [650] = { -- Level 650+
+        NPC_CFrame = CFrame.new(5258.2788085938, 38.526931762695, 4050.044921875),
+		MobLocation = CFrame.new(5677.6772460938, 92.786109924316, 4966.6323242188),
+        MobFolder = "Galley Captains",
+    },
+    [700] = {
+        NPC_CFrame = CFrame.new(-427.72567749023, 72.99634552002, 1835.9426269531),
+        MobFolder = "Raiders",
+		MobLocation = CFrame.new(68.874565124512, 93.635643005371, 2429.6752929688),
+    },
+    [1200] = {
+        NPC_CFrame = CFrame.new(-5429.0473632813, 15.977565765381, -5297.9614257813),
+        MobFolder = "Lava Pirates",
+		MobLocation = CFrame.new(-5955.8623046875, 46.687980651855, -5828.8559570313),
+    },
+
+}
+
+
+--// --- Utility Functions ---
+
+-- Teleport
+local function TeleportTo(destination)
+    local character = Players.LocalPlayer.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") or not character:FindFirstChild("Humanoid") then return end
+    local humanoid = character.Humanoid
+    local rootPart = character.HumanoidRootPart
+    humanoid:ChangeState(Enum.HumanoidStateType.Flying)
+    rootPart.CFrame = destination * CFrame.new(0, 2, 0)
+end
+
+-- Find Nearest Mob in Folder
+local function FindNearestMob(folderName)
+    local character = Players.LocalPlayer.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then return nil end
+    local rootPart = character.HumanoidRootPart
+    local closestMob = nil
+    local closestDistance = math.huge
+
+    local mobFolder = workspace:FindFirstChild(folderName)
+    if mobFolder then
+        for _, mob in ipairs(mobFolder:GetChildren()) do
+            if mob:IsA("Model") and mob:FindFirstChild("HumanoidRootPart") and mob:FindFirstChild("Humanoid") and mob.Humanoid.Health > 0 then
+                local distance = (rootPart.Position - mob.HumanoidRootPart.Position).Magnitude
+                if distance < closestDistance then
+                    closestDistance = distance
+                    closestMob = mob
+                end
+            end
+        end
+    end
+    return closestMob
+end
+
+-- Attack (REPLACE "Melee")
+local function Attack(target)
+    if not target or not target:FindFirstChild("HumanoidRootPart") then return end
+      local character = Players.LocalPlayer.Character
+    if character and character:FindFirstChild("Humanoid") then
+        character.Humanoid:ChangeState(Enum.HumanoidStateType.Flying)
+    end
+
+    local UpPos = target.HumanoidRootPart.Position + Vector3.new(0,AttackDistance,0)
+    TeleportTo(CFrame.new(UpPos))
+    task.wait()
+    -- *** REPLACE "Melee" WITH YOUR ACTUAL ATTACK EVENT NAME ***
+    ReplicatedStorage.Remotes.CommF_:InvokeServer("Melee", target)
+end
+
+-- Interact with NPC (REPLACE "InteractNPC")
+local function InteractNPC(npcCFrame)
+    local character = Players.LocalPlayer.Character
+     if character and character:FindFirstChild("HumanoidRootPart") then
+        local npcModel = nil
+         for _, obj in ipairs(workspace:GetChildren()) do  -- Iterate through *all* children
+            if obj:IsA("Model") and obj:FindFirstChild("HumanoidRootPart") then
+                if obj.HumanoidRootPart.CFrame == npcCFrame then  -- Compare CFrames
+                    npcModel = obj
+                    break
+                end
+            end
+        end
+
+        if npcModel then
+            TeleportTo(npcModel.Head.CFrame * CFrame.new(0, 2, 2))
+            task.wait(0.5)
+             -- *** REPLACE "InteractNPC" WITH YOUR ACTUAL INTERACTION EVENT NAME ***
+            pcall(function()
+               ReplicatedStorage.Remotes.CommF_:InvokeServer("InteractNPC", npcModel.Head)
+            end)
+
+        else
+            print("Error: Could not find NPC model.")
+        end
+    end
+end
+
+--// --- Farming Logic ---
+local function GetQuestForLevel(level)
+    local data = FarmData[level]
+    if data then
+      if AutoAcceptQuest then
+        InteractNPC(data.NPC_CFrame)
+      end
+    else
+      print ("Error Level")
+    end
+end
+
+local function FarmLevel(level)
+   local data = FarmData[level]
+    if not data then
+      print("No farming data found for level: " .. level)
+      return
+    end
+
+    while AutoFarm do
+         if AutoAcceptQuest then  -- Moved quest acceptance inside the loop
+            GetQuestForLevel(level)
+            task.wait(1)  -- Wait a bit after accepting quest
+        end
+
+        local currentTarget = FindNearestMob(data.MobFolder)
+        if currentTarget then
+            Attack(currentTarget)
+        else
+            TeleportTo(data.MobLocation * CFrame.new(0, 10, 0)) -- Move above mob location
+        end
+        RunService.Heartbeat:Wait()
+    end
+end
+
+--// --- UI ---
+
+local MainTab = Tabs.Main
+
+local FarmButton = MainTab:AddButton({
+    Title = "Farm Level",
+    Description = "Start farming for the selected level.",
+    Callback = function()
+        AutoFarm = not AutoFarm
+        if AutoFarm then
+            print("Auto Farm Started!")
+            FarmLevel(TargetLevel)  -- Use TargetLevel
+        else
+            print("Auto Farm Stopped!")
+             if Players.LocalPlayer.Character and Players.LocalPlayer.Character:FindFirstChild("Humanoid") then
+                Players.LocalPlayer.Character.Humanoid:ChangeState(Enum.HumanoidStateType.None)  -- Turn off flying
+            end
+        end
+    end
+})
+--// --- Create Dropdown
+local levelDropdown = MainTab:AddDropdown({
+    Title = "Select Level",
+    Description = "Choose the level range to farm.",
+    Values = {
+        "Level 1 (Bandit)",
+        "Level 10 (Monkey)",
+        "Level 650 (Galley Captain)",
+        "Level 700 (Raider)",
+        "Level 1200 (Lava Pirate)",
+    },
+    Callback = function(value)
+        if value == "Level 1 (Bandit)" then
+            TargetLevel = 1
+        elseif value == "Level 10 (Monkey)" then
+            TargetLevel = 10
+        elseif value == "Level 650 (Galley Captain)" then
+            TargetLevel = 650
+        elseif value == "Level 700 (Raider)" then
+          TargetLevel = 700
+        elseif value == "Level 1200 (Lava Pirate)" then
+          TargetLevel = 1200
+        end
+        print("Selected Level: " .. TargetLevel)
+    end
+})
+
+local SettingTab = Tabs.Setting
+
+SettingTab:AddSlider({
+    Title = "Attack Distance",
+    Description = "Adjust the distance from which to attack.",
+    Min = 5,
+    Max = 20,
+    Default = AttackDistance,
+    Callback = function(Value)
+        AttackDistance = Value
+        print("Attack Distance set to: " .. AttackDistance)
+    end
+})
+
+SettingTab:AddToggle({
+    Title = "Auto Accept Quest",
+    Description = "Automatically accepts quests from the NPC.",
+    Default = true,
+    Callback = function(Value)
+        AutoAcceptQuest = Value
+        print("Auto Accept Quest:", AutoAcceptQuest)
+    end
+})
+
+--// --- Keybind (Optional) ---
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if input.KeyCode == Enum.KeyCode.F and not gameProcessed then
+      if MainTab and MainTab.Buttons and MainTab.Buttons.FarmLevel then
+        MainTab.Buttons.FarmLevel.Callback()
+      end
+    end
+end)
+
+--// --- Initialization ---
+repeat
+    task.wait()
+until Players.LocalPlayer and Players.LocalPlayer.Character and Players.LocalPlayer.Data and game:IsLoaded()
+print("Script loaded successfully!")
+
